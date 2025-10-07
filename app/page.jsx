@@ -15,12 +15,10 @@ export default function LandingPage() {
   const router = useRouter()
 
   useEffect(() => {
-    console.log("[v0] Landing page - user:", user, "isLoading:", isLoading)
-    if (user && !isLoading) {
-      console.log("[v0] User is logged in, redirecting to /home")
+    if (!isLoading && user) {
       router.push("/home")
     }
-  }, [user, isLoading, router])
+  }, [user, isLoading])
 
   if (isLoading) {
     return (
@@ -90,3 +88,4 @@ export default function LandingPage() {
     </div>
   )
 }
+  

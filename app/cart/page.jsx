@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Minus, Plus, Trash2, ShoppingBag } from "lucide-react"
 import Link from "next/link"
+import { apiPost } from "@/lib/api"
 
 export default function CartPage() {
   const { user, isLoading } = useAuth()
@@ -34,8 +35,28 @@ export default function CartPage() {
     return null
   }
 
-  const handleCheckout = () => {
-    setShowCheckout(true)
+  const handleCheckout = async () => {
+    // Mock billing gateway logic
+    try {
+      // Simulate a successful payment session creation
+      const mockSessionId = "mock-session-" + Math.floor(Math.random() * 1000000)
+      const mockAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+      const mockCurrency = "USD"
+      try {
+        sessionStorage.setItem(
+          "mock_payment_meta",
+          JSON.stringify({
+            sessionId: mockSessionId,
+            amount: mockAmount,
+            currency: mockCurrency,
+            email: user?.email || ""
+          })
+        )
+      } catch {}
+      router.push(`/mock-checkout?sessionId=${encodeURIComponent(mockSessionId)}`)
+    } catch (e) {
+      alert("Unable to start mock payment session")
+    }
   }
 
   if (showCheckout) {
@@ -158,7 +179,7 @@ export default function CartPage() {
                   )}
 
                   <Button onClick={handleCheckout} className="w-full" size="lg">
-                    Proceed to Checkout
+                    Proceed to Payment
                   </Button>
 
                   <Link href="/products">
@@ -403,3 +424,4 @@ function CheckoutForm({ cart, cartTotal, clearCart }) {
     </div>
   )
 }
+         
