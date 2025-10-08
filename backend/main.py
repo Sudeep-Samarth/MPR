@@ -8,7 +8,8 @@ import time
 import os
 import io
 
-from .settings import settings
+from backend.settings import settings
+
 from .database import init_db, get_session, SessionLocal
 from .models import PaymentSession, Transaction
 from .utils import generate_session_id, generate_transaction_id, mask_card_number, get_client_ip, luhn_check
@@ -31,8 +32,13 @@ app.add_middleware(
 class CartItem(BaseModel):
     id: str
     name: str
-    qty: int
+    qty: Optional[int] = Field(None, alias="quantity")
     price: float
+
+    @property
+    def effective_qty(self):
+        return self.qty or 1
+
 
 
 class Customer(BaseModel):

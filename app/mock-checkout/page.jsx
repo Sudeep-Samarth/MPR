@@ -108,16 +108,16 @@ export default function MockCheckoutPage() {
         sessionId,
         card: method === "card"
           ? { number: rawCardNumber(), name: form.name.trim(), expiry: form.expiry.trim(), cvv: form.cvv.trim() }
-          : { number: "0000000000000000", name: "UPI/NetBanking", expiry: "12/30", cvv: "000" },
+          : { number: "0000000000000000", name: method === "upi" ? "UPI" : "NetBanking", expiry: "12/30", cvv: "000" },
         billingEmail: sanitizeEmail(billingEmail),
         force: force || undefined,
-      };
-      const res = await apiPost("/api/mock-pay", payload);
+      }
+      const res = await apiPost("/api/mock-pay", payload)
       if (res.status === "success") {
-        router.push(`/mock-payment-success?tx=${encodeURIComponent(res.transactionId)}&amt=${amount}&cur=${currency}&email=${encodeURIComponent(billingEmail)}`);
+        router.push(`/mock-payment-success?tx=${encodeURIComponent(res.transactionId)}&amt=${amount}&cur=${currency}&email=${encodeURIComponent(billingEmail)}`)
       } else {
-        const code = res.code || "FAIL";
-        router.push(`/mock-payment-failure?sid=${encodeURIComponent(sessionId)}&code=${encodeURIComponent(code)}&msg=${encodeURIComponent(res.message || "Payment failed")}`);
+        const code = res.code || "FAIL"
+        router.push(`/mock-payment-failure?sid=${encodeURIComponent(sessionId)}&code=${encodeURIComponent(code)}&msg=${encodeURIComponent(res.message || "Payment failed")}`)
       }
     } catch (err) {
       alert(err?.data?.detail || err.message || "Payment failed");

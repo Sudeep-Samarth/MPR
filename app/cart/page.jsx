@@ -36,26 +36,27 @@ export default function CartPage() {
   }
 
   const handleCheckout = async () => {
-    // Mock billing gateway logic
     try {
-      // Simulate a successful payment session creation
-      const mockSessionId = "mock-session-" + Math.floor(Math.random() * 1000000)
-      const mockAmount = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-      const mockCurrency = "USD"
+      const payload = {
+        cart: cart.map((i) => ({ id: i.id, name: i.name, qty: i.quantity, price: i.price })),
+        customer: user ? { email: user.email, name: user.name || user.email } : null,
+      }
+      const res = await apiPost("/api/create-mock-payment-session", payload)
+      // Persist meta for mock-checkout UI display
       try {
         sessionStorage.setItem(
           "mock_payment_meta",
           JSON.stringify({
-            sessionId: mockSessionId,
-            amount: mockAmount,
-            currency: mockCurrency,
-            email: user?.email || ""
+            sessionId: res.sessionId,
+            amount: res.amount,
+            currency: res.currency,
+            email: user?.email || "",
           })
         )
       } catch {}
-      router.push(`/mock-checkout?sessionId=${encodeURIComponent(mockSessionId)}`)
+      router.push(`/mock-checkout?sessionId=${encodeURIComponent(res.sessionId)}`)
     } catch (e) {
-      alert("Unable to start mock payment session")
+      alert(e?.data?.detail || e.message || "Unable to start payment session")
     }
   }
 

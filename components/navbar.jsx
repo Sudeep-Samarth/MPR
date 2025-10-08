@@ -19,13 +19,13 @@ export function Navbar() {
   ]
 
   return (
-    <nav className="border-b border-zinc-800 bg-black/95 backdrop-blur sticky top-0 z-50">
+    <nav className="border-b border-zinc-800 sticky top-0 z-50 bg-black/70 backdrop-blur supports-[backdrop-filter]:bg-black/60">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/home" className="flex items-center gap-2 font-bold text-xl">
-            <Dumbbell className="w-6 h-6 text-red-500" />
-            <span>NEWGEN FITNESS</span>
+          <Link href="/home" className="flex items-center gap-2 font-bold text-xl tracking-tight">
+            <Dumbbell className="w-6 h-6 text-red-500 drop-shadow-[0_0_6px_rgba(239,68,68,0.35)]" />
+            <span className="bg-gradient-to-r from-zinc-100 to-zinc-400 bg-clip-text text-transparent">NEWGEN FITNESS</span>
           </Link>
 
           {/* Navigation Links */}
@@ -34,8 +34,8 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-red-500 ${
-                  pathname === link.href ? "text-red-500" : "text-zinc-400"
+                className={`text-sm font-medium transition-colors hover:text-white ${
+                  pathname === link.href ? "text-white" : "text-zinc-400"
                 }`}
               >
                 {link.label}
