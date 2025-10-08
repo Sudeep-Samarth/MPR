@@ -1,0 +1,54 @@
+[
+  {
+    "sessionId": "3bd7e2c6-98c4-449e-9d73-f317152243df",
+    "customer": {
+      "email": "test@example.com",
+      "name": "Test User"
+    },
+    "cart": [
+      {
+        "id": 1,
+        "name": "Test Product",
+        "qty": 2,
+        "price": 25.99
+      }
+    ],
+    "totals": {
+      "subtotal": 51.98,
+      "shipping": 9.99,
+      "tax": 4.16,
+      "total": 66.13
+    },
+    "status": "pending",
+    "createdAt": "2025-10-08T05:00:57.151Z",
+    "expiresAt": "2025-10-08T05:30:57.151Z"
+  },
+  {
+    "sessionId": "0d9889ce-f0a0-4cf7-a9bf-6a0ad0a27023",
+    "customer": {
+      "email": "adi@gmail.com",
+      "name": "Adi"
+    },
+    "cart": [
+      {
+        "id": 12,
+        "name": "Fat Burner Capsules",
+        "qty": 3,
+        "price": 54.99
+      }
+    ],
+    "totals": {
+      "subtotal": 164.97,
+      "shipping": 0,
+      "tax": 13.2,
+      "total": 178.17
+    },
+    "status": "completed",
+    "createdAt": "2025-10-08T05:05:13.694Z",
+    "expiresAt": "2025-10-08T05:35:13.694Z",
+    "completedAt": "2025-10-08T05:05:54.605Z",
+    "orderId": "f7330c64-2ced-4a24-a322-98488518165e",
+    "transactionId": "8b5866c0-c86e-4497-a3f7-f40a686a0028",
+    "paymentMethod": "mock_card"
+  }
+]

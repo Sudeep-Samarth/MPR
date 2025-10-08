@@ -1,224 +1,370 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useAuth } from "@/contexts/auth-context"
+import { useCart } from "@/contexts/cart-context"
 import { useRouter, useSearchParams } from "next/navigation"
+import { useEffect, useState } from "react"
 import { Navbar } from "@/components/navbar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import Link from "next/link"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { CheckCircle, CreditCard, Truck, Shield } from "lucide-react"
 import { apiPost } from "@/lib/api"
 
-function luhnCheck(num) {
-  const digits = (num || "").replace(/\D/g, "").split("").map((d) => parseInt(d, 10));
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    let d = digits[digits.length - 1 - i];
-    if (i % 2 === 1) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-  }
-  return sum % 10 === 0;
-}
-
 export default function MockCheckoutPage() {
-  const params = useSearchParams();
-  const router = useRouter();
-  const sessionId = params.get("sessionId");
+  const { user, isLoading } = useAuth()
+  const { cart, clearCart } = useCart()
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const sessionId = searchParams.get('sessionId')
 
-  const [amount, setAmount] = useState(0);
-  const [currency, setCurrency] = useState("INR");
-  const [billingEmail, setBillingEmail] = useState("");
-  const [method, setMethod] = useState("card");
-  const [force, setForce] = useState("");
-  const [form, setForm] = useState({ number: "", name: "", expiry: "", cvv: "" });
-  const [errors, setErrors] = useState({});
-  const [submitting, setSubmitting] = useState(false);
+  const [paymentData, setPaymentData] = useState(null)
+  const [formData, setFormData] = useState({
+    cardNumber: '4242424242424242',
+    expiryDate: '12/25',
+    cvv: '123',
+    cardName: user?.name || user?.email || '',
+    billingAddress: '',
+    city: '',
+    zipCode: '',
+    country: 'US'
+  })
+  const [isProcessing, setIsProcessing] = useState(false)
+  const [paymentComplete, setPaymentComplete] = useState(false)
+  const [orderDetails, setOrderDetails] = useState(null)
 
   useEffect(() => {
-    // In a real flow we might fetch the session to get amount/email; for demo, read from storage
-    const stored = sessionStorage.getItem("mock_payment_meta");
-    if (stored) {
-      try {
-        const meta = JSON.parse(stored);
-        if (meta.sessionId === sessionId) {
-          setAmount(meta.amount || 0);
-          setCurrency(meta.currency || "INR");
-          setBillingEmail(meta.email || "");
-        }
-      } catch {}
+    if (!isLoading && !user) {
+      router.push("/")
     }
-    // Restore pending form state (if any)
-    const saved = sessionStorage.getItem(`mock_payment_form_${sessionId}`)
-    if (saved) {
-      try {
-        const f = JSON.parse(saved)
-        setForm({ number: f.number || "", name: f.name || "", expiry: f.expiry || "", cvv: "" })
-        setBillingEmail(f.billingEmail || "")
-        setMethod(f.method || "card")
-      } catch {}
+  }, [user, isLoading, router])
+
+  useEffect(() => {
+    if (sessionId) {
+      loadPaymentSession()
     }
-  }, [sessionId]);
+  }, [sessionId])
 
-  const formatCardNumber = (val) => {
-    const digits = (val || "").replace(/\D/g, "").slice(0, 19)
-    return digits.replace(/(.{4})/g, "$1 ").trim()
-  }
-
-  const rawCardNumber = () => form.number.replace(/\D/g, "")
-
-  const formatExpiry = (val) => {
-    const digits = (val || "").replace(/\D/g, "").slice(0, 4)
-    if (digits.length <= 2) return digits
-    return digits.slice(0, 2) + "/" + digits.slice(2)
-  }
-
-  const sanitizeEmail = (val) => (val || "").trim()
-
-  const validate = () => {
-    const e = {};
-    if (method === "card") {
-      const digits = rawCardNumber();
-      if (digits.length < 12 || digits.length > 19) e.number = "Enter a valid card number";
-      if (!form.name || form.name.length < 2) e.name = "Name required";
-      if (!/^((0[1-9])|(1[0-2]))\/(\d{2})$/.test(form.expiry)) e.expiry = "MM/YY";
-      if (!/^[0-9]{3,4}$/.test(form.cvv)) e.cvv = "3-4 digit CVV";
-      if (digits && !luhnCheck(digits)) e.number = e.number || "Card number failed check";
-    }
-    if (!billingEmail) e.email = "Email required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(billingEmail)) e.email = "Enter a valid email";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  const payNow = async () => {
-    if (!sessionId) return;
-    if (!validate()) return;
-    setSubmitting(true);
+  const loadPaymentSession = async () => {
     try {
-      // Persist current form state (without CVV) for retries
-      try {
-        sessionStorage.setItem(
-          `mock_payment_form_${sessionId}`,
-          JSON.stringify({ number: form.number, name: form.name, expiry: form.expiry, billingEmail, method })
-        )
-      } catch {}
-      const payload = {
-        sessionId,
-        card: method === "card"
-          ? { number: rawCardNumber(), name: form.name.trim(), expiry: form.expiry.trim(), cvv: form.cvv.trim() }
-          : { number: "0000000000000000", name: method === "upi" ? "UPI" : "NetBanking", expiry: "12/30", cvv: "000" },
-        billingEmail: sanitizeEmail(billingEmail),
-        force: force || undefined,
-      }
-      const res = await apiPost("/api/mock-pay", payload)
-      if (res.status === "success") {
-        router.push(`/mock-payment-success?tx=${encodeURIComponent(res.transactionId)}&amt=${amount}&cur=${currency}&email=${encodeURIComponent(billingEmail)}`)
+      const response = await fetch(`http://localhost:8000/api/payment-session/${sessionId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setPaymentData(data)
       } else {
-        const code = res.code || "FAIL"
-        router.push(`/mock-payment-failure?sid=${encodeURIComponent(sessionId)}&code=${encodeURIComponent(code)}&msg=${encodeURIComponent(res.message || "Payment failed")}`)
+        console.error('Failed to load payment session')
       }
-    } catch (err) {
-      alert(err?.data?.detail || err.message || "Payment failed");
-    } finally {
-      setSubmitting(false);
+    } catch (error) {
+      console.error('Error loading payment session:', error)
     }
-  };
+  }
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handlePayment = async () => {
+    setIsProcessing(true)
+    
+    try {
+      const response = await apiPost('/api/complete-payment', {
+        sessionId,
+        paymentMethod: 'mock_card',
+        shippingAddress: {
+          name: formData.cardName,
+          address: formData.billingAddress,
+          city: formData.city,
+          zipCode: formData.zipCode,
+          country: formData.country
+        }
+      })
+
+      setOrderDetails(response)
+      setPaymentComplete(true)
+      clearCart()
+      
+      // Clear session storage
+      sessionStorage.removeItem('mock_payment_meta')
+      
+    } catch (error) {
+      console.error('Payment failed:', error)
+      alert(error.message || 'Payment failed. Please try again.')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-2xl">Loading...</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  if (paymentComplete && orderDetails) {
+    return (
+      <div className="min-h-screen">
+        <Navbar />
+        <main className="container mx-auto px-4 py-12">
+          <div className="max-w-2xl mx-auto text-center">
+            <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle className="w-10 h-10 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold mb-4 text-green-600">Payment Successful!</h1>
+            <p className="text-xl text-muted-foreground mb-8">
+              Your order has been confirmed and payment processed successfully.
+            </p>
+            
+            <Card className="mb-8 text-left">
+              <CardContent className="p-6">
+                <h2 className="text-2xl font-bold mb-4">Order Details</h2>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Order ID:</span>
+                    <span className="font-mono">{orderDetails.orderId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Transaction ID:</span>
+                    <span className="font-mono">{orderDetails.transactionId}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Amount:</span>
+                    <span className="font-bold">${orderDetails.amount}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status:</span>
+                    <span className="text-green-600 font-semibold">Completed</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="space-x-4">
+              <Button onClick={() => router.push('/home')} size="lg">
+                Back to Home
+              </Button>
+              <Button onClick={() => router.push('/products')} size="lg" variant="outline">
+                Continue Shopping
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
+  if (!paymentData) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-2xl">Loading payment session...</div>
+      </div>
+    )
+  }
+
+  const calculateTotals = () => {
+    const subtotal = cart.reduce((total, item) => total + (item.price * item.quantity), 0)
+    const shipping = subtotal >= 100 ? 0 : 9.99
+    const tax = subtotal * 0.08
+    const total = subtotal + shipping + tax
+    
+    return { subtotal, shipping, tax, total }
+  }
+
+  const totals = calculateTotals()
 
   return (
     <div className="min-h-screen">
       <Navbar />
-      <main className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-2">Secure Payment — Demo Mode</h1>
-        <p className="text-sm text-muted-foreground mb-6">This is a mock payment gateway for demonstration only. No real funds will be collected.</p>
-
-        <div className="grid lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <Card>
-              <CardContent className="p-6 space-y-4">
-                <div className="flex gap-2">
-                  <Button variant={method === "card" ? "default" : "outline"} onClick={() => setMethod("card")}>Card</Button>
-                  <Button variant={method === "upi" ? "default" : "outline"} onClick={() => setMethod("upi")}>Pay with UPI (simulate QR)</Button>
-                  <Button variant={method === "netbanking" ? "default" : "outline"} onClick={() => setMethod("netbanking")}>Pay with NetBanking (simulate redirect)</Button>
-                </div>
-
-                {method === "card" ? (
+      
+      <main className="container mx-auto px-4 py-12">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-4xl font-bold mb-8">Complete Your Payment</h1>
+          
+          <div className="grid lg:grid-cols-2 gap-8">
+            {/* Payment Form */}
+            <div className="space-y-6">
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-6">
+                    <CreditCard className="w-5 h-5" />
+                    <h2 className="text-2xl font-bold">Payment Information</h2>
+                  </div>
+                  
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium mb-2">Card number</label>
-                      <input className="w-full px-4 py-2 rounded-lg border border-border bg-background" placeholder="1234 5678 9012 3456" value={form.number}
-                        inputMode="numeric" autoComplete="cc-number"
-                        onChange={(e) => setForm({ ...form, number: formatCardNumber(e.target.value) })} />
-                      {errors.number && <p className="text-red-600 text-sm mt-1">{errors.number}</p>}
+                      <Label htmlFor="cardName">Cardholder Name</Label>
+                      <Input
+                        id="cardName"
+                        name="cardName"
+                        value={formData.cardName}
+                        onChange={handleInputChange}
+                        placeholder="John Doe"
+                        required
+                      />
                     </div>
+                    
                     <div>
-                      <label className="block text-sm font-medium mb-2">Cardholder name</label>
-                      <input className="w-full px-4 py-2 rounded-lg border border-border bg-background" value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })} />
-                      {errors.name && <p className="text-red-600 text-sm mt-1">{errors.name}</p>}
+                      <Label htmlFor="cardNumber">Card Number</Label>
+                      <Input
+                        id="cardNumber"
+                        name="cardNumber"
+                        value={formData.cardNumber}
+                        onChange={handleInputChange}
+                        placeholder="4242 4242 4242 4242"
+                        required
+                      />
                     </div>
+                    
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium mb-2">Expiry (MM/YY)</label>
-                        <input className="w-full px-4 py-2 rounded-lg border border-border bg-background" placeholder="MM/YY" value={form.expiry}
-                          inputMode="numeric" autoComplete="cc-exp"
-                          onChange={(e) => setForm({ ...form, expiry: formatExpiry(e.target.value) })} />
-                        {errors.expiry && <p className="text-red-600 text-sm mt-1">{errors.expiry}</p>}
+                        <Label htmlFor="expiryDate">Expiry Date</Label>
+                        <Input
+                          id="expiryDate"
+                          name="expiryDate"
+                          value={formData.expiryDate}
+                          onChange={handleInputChange}
+                          placeholder="MM/YY"
+                          required
+                        />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium mb-2">CVV</label>
-                        <input className="w-full px-4 py-2 rounded-lg border border-border bg-background" placeholder="123" value={form.cvv}
-                          inputMode="numeric" autoComplete="cc-csc"
-                          onChange={(e) => setForm({ ...form, cvv: e.target.value.replace(/\D/g, "").slice(0, 4) })} />
-                        {errors.cvv && <p className="text-red-600 text-sm mt-1">{errors.cvv}</p>}
+                        <Label htmlFor="cvv">CVV</Label>
+                        <Input
+                          id="cvv"
+                          name="cvv"
+                          value={formData.cvv}
+                          onChange={handleInputChange}
+                          placeholder="123"
+                          required
+                        />
                       </div>
                     </div>
                   </div>
-                ) : method === "upi" ? (
-                  <div className="text-sm text-muted-foreground">Scan the mock QR in your mind. This will submit a mock success/failure based on settings.</div>
-                ) : (
-                  <div className="text-sm text-muted-foreground">Simulating netbanking redirect... clicking pay will complete with mock rules.</div>
-                )}
+                </CardContent>
+              </Card>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2">Billing email</label>
-                  <input className="w-full px-4 py-2 rounded-lg border border-border bg-background" value={billingEmail}
-                    type="email" autoComplete="email"
-                    onChange={(e) => setBillingEmail(e.target.value)} />
-                  {errors.email && <p className="text-red-600 text-sm mt-1">{errors.email}</p>}
-                </div>
+              <Card>
+                <CardContent className="p-6">
+                  <div className="flex items-center gap-2 mb-6">
+                    <Truck className="w-5 h-5" />
+                    <h2 className="text-2xl font-bold">Billing Address</h2>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="billingAddress">Address</Label>
+                      <Input
+                        id="billingAddress"
+                        name="billingAddress"
+                        value={formData.billingAddress}
+                        onChange={handleInputChange}
+                        placeholder="123 Main St"
+                        required
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="city">City</Label>
+                        <Input
+                          id="city"
+                          name="city"
+                          value={formData.city}
+                          onChange={handleInputChange}
+                          placeholder="New York"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="zipCode">ZIP Code</Label>
+                        <Input
+                          id="zipCode"
+                          name="zipCode"
+                          value={formData.zipCode}
+                          onChange={handleInputChange}
+                          placeholder="10001"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-muted-foreground">Force outcome (testing)</label>
-                  <select className="px-3 py-2 rounded border" value={force} onChange={(e) => setForce(e.target.value)}>
-                    <option value="">Auto</option>
-                    <option value="success">Force success</option>
-                    <option value="failure">Force failure</option>
-                  </select>
-                </div>
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Shield className="w-4 h-4" />
+                <span>Your payment information is secure and encrypted</span>
+              </div>
+            </div>
 
-                <Button className="w-full" size="lg" onClick={payNow} disabled={submitting}>
-                  {submitting ? "Processing..." : `Pay Now — ${currency} ${amount}`}
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-
-          <div>
-            <Card>
-              <CardContent className="p-6">
-                <div className="font-semibold mb-2">Amount</div>
-                <div className="text-2xl">{currency} {amount}</div>
-                <div className="text-xs text-muted-foreground mt-4">This is a mock gateway for demo/testing — no real money will be charged.</div>
-              </CardContent>
-            </Card>
+            {/* Order Summary */}
+            <div className="space-y-6">
+              <Card className="sticky top-20">
+                <CardContent className="p-6">
+                  <h2 className="text-2xl font-bold mb-6">Order Summary</h2>
+                  
+                  <div className="space-y-3 mb-6">
+                    {cart.map((item) => (
+                      <div key={item.id} className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">
+                          {item.name} x{item.quantity}
+                        </span>
+                        <span>${(item.price * item.quantity).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <Separator className="my-4" />
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Subtotal</span>
+                      <span>${totals.subtotal.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Shipping</span>
+                      <span>{totals.shipping === 0 ? "FREE" : `$${totals.shipping.toFixed(2)}`}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Tax</span>
+                      <span>${totals.tax.toFixed(2)}</span>
+                    </div>
+                    <Separator className="my-2" />
+                    <div className="flex justify-between text-lg font-bold">
+                      <span>Total</span>
+                      <span className="text-primary">${totals.total.toFixed(2)}</span>
+                    </div>
+                  </div>
+                  
+                  <Button 
+                    onClick={handlePayment}
+                    className="w-full mt-6" 
+                    size="lg"
+                    disabled={isProcessing}
+                  >
+                    {isProcessing ? "Processing..." : `Pay $${totals.total.toFixed(2)}`}
+                  </Button>
+                  
+                  <p className="text-xs text-muted-foreground text-center mt-4">
+                    By completing this purchase, you agree to our terms of service and privacy policy.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           </div>
         </div>
-
       </main>
     </div>
   )
 }
-
-

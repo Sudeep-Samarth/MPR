@@ -1,0 +1,36 @@
+[
+  {
+    "orderId": "f7330c64-2ced-4a24-a322-98488518165e",
+    "sessionId": "0d9889ce-f0a0-4cf7-a9bf-6a0ad0a27023",
+    "transactionId": "8b5866c0-c86e-4497-a3f7-f40a686a0028",
+    "customer": {
+      "email": "adi@gmail.com",
+      "name": "Adi"
+    },
+    "cart": [
+      {
+        "id": 12,
+        "name": "Fat Burner Capsules",
+        "qty": 3,
+        "price": 54.99
+      }
+    ],
+    "totals": {
+      "subtotal": 164.97,
+      "shipping": 0,
+      "tax": 13.2,
+      "total": 178.17
+    },
+    "paymentMethod": "mock_card",
+    "status": "confirmed",
+    "createdAt": "2025-10-08T05:05:54.606Z",
+    "shippingAddress": {
+      "name": "Adi",
+      "address": "123 Main st",
+      "city": "Mumbai",
+      "zipCode": "30067",
+      "country": "US"
+    },
+    "notes": null
+  }
+]
